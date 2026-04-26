@@ -1,6 +1,8 @@
+logsBucket: 'gs://sit737-26t1-pandya-05bd0a3_cloudbuild/logs'
+options:
+  logging: GCS_ONLY
 
 timeout: 1200s
-
 
 steps:
   - name: "gcr.io/cloud-builders/docker"
