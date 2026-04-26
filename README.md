@@ -375,3 +375,5 @@ kubectl scale deployment weather-gateway --replicas=3
 # Port-forward for local testing without a LoadBalancer
 kubectl port-forward deployment/weather-gateway 5000:5000
 ```
+
+<!-- CI/CD trigger test - Week 7 submission -->
