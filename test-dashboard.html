@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Gateway — Test Dashboard</title>
+<style>
+:root {
+    --bg:        #0d0d0d;
+    --surface:   #141414;
+    --surface-2: #1c1c1c;
+    --border:    #2a2a2a;
+    --text:      #e8e8e8;
+    --muted:     #888;
+    --green:     #00c896;
+    --blue:      #4a9eff;
+    --red:       #ff5555;
+    --amber:     #ffb347;
+    --purple:    #c678dd;
+    --font:      'Fira Code', 'Cascadia Code', Consolas, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 13px;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* ── Top bar ───────────────────────────────────────────────────────────── */
+.topbar {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 20px;
+    height: 50px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 10;
+}
+.topbar-title { font-size: 14px; font-weight: bold; color: var(--green); letter-spacing: .05em; white-space: nowrap; }
+.topbar-title span { color: var(--muted); font-weight: normal; }
+
+.base-url-group { display: flex; align-items: center; gap: 8px; flex: 1; max-width: 380px; }
+.base-url-label { font-size: 10px; color: var(--muted); white-space: nowrap; text-transform: uppercase; letter-spacing: .1em; }
+.base-url-input {
+    flex: 1; background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); font-family: var(--font); font-size: 12px;
+    padding: 5px 10px; border-radius: 4px; outline: none; transition: border-color .2s;
+}
+.base-url-input:focus { border-color: var(--green); }
+
+.status-pill {
+    margin-left: auto; display: flex; align-items: center; gap: 7px;
+    padding: 4px 12px; border-radius: 20px; background: var(--surface-2); border: 1px solid var(--border);
+}
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background .3s, box-shadow .3s; }
+.status-dot.up   { background: var(--green); box-shadow: 0 0 7px var(--green); animation: blink 2.5s infinite; }
+.status-dot.down { background: var(--red); box-shadow: 0 0 7px var(--red); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.45} }
+.status-label { font-size: 11px; color: var(--muted); }
+.status-label.up   { color: var(--green); }
+.status-label.down { color: var(--red); }
+
+/* ── Main layout ───────────────────────────────────────────────────────── */
+.layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ── Sidebar ───────────────────────────────────────────────────────────── */
+.sidebar {
+    width: 220px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+.sidebar-header { padding: 14px 16px 6px; font-size: 9px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
+
+.ep-btn {
+    display: flex; align-items: center; gap: 9px; width: 100%;
+    padding: 9px 14px; background: transparent; border: none; border-left: 2px solid transparent;
+    cursor: pointer; font-family: var(--font); font-size: 11px; color: var(--muted);
+    text-align: left; transition: background .12s, color .12s;
+}
+.ep-btn:hover { background: var(--surface-2); color: var(--text); }
+.ep-btn.active { background: rgba(0,200,150,.07); border-left-color: var(--green); color: var(--text); }
+
+.badge { font-size: 9px; font-weight: bold; padding: 2px 6px; border-radius: 3px; min-width: 44px; text-align: center; letter-spacing: .04em; }
+.badge.GET    { background: rgba(74,159,255,.18); color: var(--blue); }
+.badge.POST   { background: rgba(0,200,150,.18);  color: var(--green); }
+.badge.DELETE { background: rgba(255,85,85,.18);  color: var(--red); }
+
+/* ── Content column ────────────────────────────────────────────────────── */
+.content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* ── Main panels row (request LEFT + response RIGHT) ───────────────────── */
+.main-panels {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* ── Request panel (left column, fixed width) ──────────────────────────── */
+.request-panel {
+    width: 310px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.panel-label { font-size: 9px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); margin-bottom: 12px; }
+
+.url-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.req-badge { font-size: 11px; font-weight: bold; padding: 5px 10px; border-radius: 4px; min-width: 60px; text-align: center; flex-shrink: 0; }
+.url-display {
+    flex: 1; min-width: 0; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 4px; padding: 6px 10px; color: var(--muted); font-family: var(--font);
+    font-size: 11px; word-break: break-all; line-height: 1.5;
+}
+
+.params-grid { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
+.param-field { display: flex; flex-direction: column; gap: 5px; }
+.param-label { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.param-input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--font); font-size: 13px; padding: 8px 12px;
+    border-radius: 4px; outline: none; transition: border-color .2s; width: 100%;
+}
+.param-input:focus { border-color: var(--blue); }
+
+.send-btn {
+    width: 100%; background: var(--green); color: #000; border: none; border-radius: 4px;
+    padding: 10px; font-family: var(--font); font-size: 13px; font-weight: bold;
+    cursor: pointer; letter-spacing: .05em; transition: opacity .15s, transform .1s;
+}
+.send-btn:hover  { opacity: .85; }
+.send-btn:active { transform: scale(.98); }
+.send-btn:disabled { opacity: .38; cursor: not-allowed; }
+
+.shortcut-hint { text-align: center; font-size: 10px; color: var(--muted); margin-top: 8px; }
+
+/* ── Response panel (right, takes all remaining space) ─────────────────── */
+.response-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+}
+
+/* Response toolbar */
+.resp-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+}
+
+.status-chip {
+    font-size: 12px; font-weight: bold; padding: 4px 12px; border-radius: 4px; display: none;
+}
+.status-chip.ok   { background: rgba(0,200,150,.14); color: var(--green); }
+.status-chip.warn { background: rgba(255,179,71,.14); color: var(--amber); }
+.status-chip.err  { background: rgba(255,85,85,.14);  color: var(--red); }
+
+.resp-time { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+.toolbar-spacer { flex: 1; }
+
+.tool-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--muted);
+    font-family: var(--font); font-size: 10px; padding: 4px 10px; border-radius: 4px;
+    cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+    white-space: nowrap;
+}
+.tool-btn:hover    { border-color: var(--blue); color: var(--blue); }
+.tool-btn.active   { border-color: var(--green); color: var(--green); background: rgba(0,200,150,.08); }
+.tool-btn.copy-btn { display: none; }
+
+/* Response body */
+.resp-body {
+    flex: 1;
+    overflow: auto;
+    padding: 18px 20px;
+    font-family: var(--font);
+    font-size: 13px;
+    line-height: 1.75;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: var(--bg);
+    transition: font-size .1s;
+}
+.resp-body.nowrap { white-space: pre; word-break: normal; }
+.resp-placeholder { color: var(--muted); font-style: italic; }
+
+/* JSON highlighting */
+.jk { color: var(--blue); }
+.js { color: var(--green); }
+.jn { color: var(--amber); }
+.jb { color: var(--purple); }
+.jl { color: var(--muted); }
+
+/* ── Bottom section (collapsible) ──────────────────────────────────────── */
+.bottom-section { flex-shrink: 0; display: flex; flex-direction: column; }
+
+.bottom-toggle-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 16px;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+}
+.bottom-toggle-bar:hover { background: var(--surface-2); }
+.bottom-toggle-label { font-size: 9px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.bottom-toggle-icon { font-size: 10px; color: var(--muted); transition: transform .25s; }
+.bottom-toggle-icon.open { transform: rotate(180deg); }
+
+.bottom-row {
+    display: flex;
+    height: 260px;
+    overflow: hidden;
+    transition: height .25s ease, opacity .25s ease;
+}
+.bottom-row.collapsed { height: 0; opacity: 0; pointer-events: none; }
+
+/* History */
+.history-pane { flex: 1; display: flex; flex-direction: column; overflow: hidden; border-right: 1px solid var(--border); }
+.pane-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.pane-title { font-size: 9px; text-transform: uppercase; letter-spacing: .14em; color: var(--muted); }
+.count-pill { font-size: 10px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); padding: 1px 9px; border-radius: 10px; }
+
+.table-scroll { overflow: auto; flex: 1; }
+table.ht { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.ht th {
+    position: sticky; top: 0; background: var(--surface); color: var(--muted);
+    font-size: 9px; text-transform: uppercase; letter-spacing: .09em; font-weight: normal;
+    padding: 6px 12px; border-bottom: 1px solid var(--border); text-align: left;
+}
+table.ht td { padding: 7px 12px; border-bottom: 1px solid rgba(42,42,42,.55); vertical-align: middle; }
+table.ht tr:hover td { background: rgba(255,255,255,.025); }
+
+.city-cell { color: var(--blue); font-weight: bold; }
+.src-badge { font-size: 9px; padding: 2px 8px; border-radius: 3px; }
+.src-badge.live   { background: rgba(0,200,150,.15); color: var(--green); }
+.src-badge.cached { background: rgba(255,179,71,.15); color: var(--amber); }
+
+.del-row-btn {
+    background: transparent; border: 1px solid rgba(255,85,85,.3); color: var(--red);
+    font-family: var(--font); font-size: 9px; padding: 3px 10px; border-radius: 3px;
+    cursor: pointer; transition: background .15s, border-color .15s;
+}
+.del-row-btn:hover { background: rgba(255,85,85,.14); border-color: var(--red); }
+.no-data td { text-align: center; color: var(--muted); padding: 24px; font-style: italic; }
+
+/* Stats pane */
+.stats-pane { width: 310px; flex-shrink: 0; display: flex; flex-direction: column; overflow: hidden; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--border); flex: 1; overflow-y: auto; }
+.stat-card { background: var(--bg); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.stat-name { font-size: 9px; text-transform: uppercase; letter-spacing: .12em; color: var(--muted); }
+.stat-rows { display: flex; flex-direction: column; gap: 4px; }
+.stat-row { display: flex; justify-content: space-between; align-items: baseline; }
+.stat-lbl { font-size: 9px; color: var(--muted); }
+.stat-val { font-size: 13px; font-weight: bold; }
+.stat-val.avg { color: var(--green); }
+.stat-val.mn  { color: var(--blue); }
+.stat-val.mx  { color: var(--amber); }
+.total-card { background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.total-num { font-size: 30px; font-weight: bold; color: var(--green); line-height: 1; }
+.total-lbl { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .1em; }
+
+/* ── Toast ─────────────────────────────────────────────────────────────── */
+.toast-wrap { position: fixed; top: 60px; right: 16px; display: flex; flex-direction: column; gap: 7px; z-index: 9999; pointer-events: none; }
+.toast {
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--green);
+    border-radius: 4px; padding: 9px 14px; font-size: 12px; max-width: 310px;
+    display: flex; align-items: center; gap: 8px; animation: tIn .2s ease-out; pointer-events: auto;
+}
+.toast.error   { border-left-color: var(--red); }
+.toast.warning { border-left-color: var(--amber); }
+@keyframes tIn  { from { transform: translateX(110%); opacity:0; } to { transform: translateX(0); opacity:1; } }
+@keyframes tOut { from { transform: translateX(0); opacity:1; } to { transform: translateX(110%); opacity:0; } }
+.toast.out { animation: tOut .2s ease-in forwards; }
+
+/* ── Spinner ───────────────────────────────────────────────────────────── */
+.spin { display: inline-block; width: 11px; height: 11px; border: 2px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: rot .55s linear infinite; vertical-align: middle; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ── Fullscreen response overlay ───────────────────────────────────────── */
+.fs-overlay {
+    display: none; position: fixed; inset: 0; z-index: 500;
+    background: var(--bg); flex-direction: column;
+}
+.fs-overlay.open { display: flex; }
+.fs-toolbar {
+    display: flex; align-items: center; gap: 10px; padding: 12px 20px;
+    background: var(--surface); border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.fs-title { font-size: 12px; color: var(--muted); flex: 1; }
+.fs-body { flex: 1; overflow: auto; padding: 24px 28px; font-family: var(--font); font-size: 14px; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+.fs-body.nowrap { white-space: pre; }
+
+/* ── Scrollbar ─────────────────────────────────────────────────────────── */
+::-webkit-scrollbar          { width: 5px; height: 5px; }
+::-webkit-scrollbar-track    { background: transparent; }
+::-webkit-scrollbar-thumb    { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+    <div class="topbar-title">⚡ Weather Gateway <span>/ test dashboard</span></div>
+    <div class="base-url-group">
+        <span class="base-url-label">Base URL</span>
+        <input id="baseUrl" class="base-url-input" type="text" value="" placeholder="http://localhost:5000" spellcheck="false">
+    </div>
+    <div class="status-pill">
+        <div class="status-dot" id="sDot"></div>
+        <span class="status-label" id="sLabel">Checking…</span>
+    </div>
+</div>
+
+<!-- Main layout -->
+<div class="layout">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">Endpoints</div>
+        <div id="sidebarList"></div>
+    </div>
+
+    <!-- Content column -->
+    <div class="content">
+
+        <!-- Request (left) + Response (right) side by side -->
+        <div class="main-panels">
+
+            <!-- Request panel -->
+            <div class="request-panel">
+                <div class="panel-label">Request</div>
+                <div class="url-bar">
+                    <span class="req-badge badge" id="reqBadge">GET</span>
+                    <div class="url-display" id="urlDisplay"></div>
+                </div>
+                <div class="params-grid" id="paramsGrid"></div>
+                <button class="send-btn" id="sendBtn" onclick="sendRequest()">▶  Send Request</button>
+                <div class="shortcut-hint">Ctrl+Enter to send</div>
+            </div>
+
+            <!-- Response panel -->
+            <div class="response-panel">
+                <div class="resp-toolbar">
+                    <span class="status-chip" id="statusChip"></span>
+                    <span class="resp-time" id="respTime"></span>
+                    <div class="toolbar-spacer"></div>
+                    <button class="tool-btn" id="wrapBtn" onclick="toggleWrap()" title="Toggle word wrap">↩ Wrap</button>
+                    <button class="tool-btn" onclick="changeFontSize(-1)" title="Decrease font size">A−</button>
+                    <button class="tool-btn" onclick="changeFontSize(1)"  title="Increase font size">A+</button>
+                    <button class="tool-btn copy-btn" id="copyBtn" onclick="copyResponse()">⎘ Copy JSON</button>
+                    <button class="tool-btn" id="fsBtn" onclick="openFullscreen()" title="Fullscreen view">⛶ Expand</button>
+                </div>
+                <div class="resp-body" id="respBody">
+                    <span class="resp-placeholder">Select an endpoint on the left, then click ▶ Send Request.</span>
+                </div>
+            </div>
+
+        </div><!-- /main-panels -->
+
+        <!-- Collapsible bottom section -->
+        <div class="bottom-section">
+            <div class="bottom-toggle-bar" onclick="toggleBottom()">
+                <div class="bottom-toggle-label">
+                    <span id="bottomLabel">▼ History &amp; Stats</span>
+                    <span class="count-pill" id="countPill" style="margin-left:8px">0 snapshots</span>
+                </div>
+                <span class="bottom-toggle-icon open" id="toggleIcon">▲</span>
+            </div>
+
+            <div class="bottom-row" id="bottomRow">
+                <!-- History -->
+                <div class="history-pane">
+                    <div class="pane-header">
+                        <span class="pane-title">Snapshot History</span>
+                    </div>
+                    <div class="table-scroll">
+                        <table class="ht">
+                            <thead>
+                                <tr>
+                                    <th>City</th>
+                                    <th>Temp (°C)</th>
+                                    <th>Humidity (%)</th>
+                                    <th>Wind (km/h)</th>
+                                    <th>Source</th>
+                                    <th>Saved</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyBody">
+                                <tr class="no-data"><td colspan="7">No snapshots yet — POST /weather/snapshot to begin</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-pane">
+                    <div class="pane-header">
+                        <span class="pane-title">Aggregated Stats</span>
+                    </div>
+                    <div class="stats-grid" id="statsGrid"></div>
+                </div>
+            </div><!-- /bottom-row -->
+        </div><!-- /bottom-section -->
+
+    </div><!-- /content -->
+</div><!-- /layout -->
+
+<!-- Fullscreen response overlay -->
+<div class="fs-overlay" id="fsOverlay">
+    <div class="fs-toolbar">
+        <span class="fs-title" id="fsTitle">Response</span>
+        <button class="tool-btn" id="fsWrapBtn" onclick="toggleFsWrap()">↩ Wrap</button>
+        <button class="tool-btn" onclick="copyResponse()">⎘ Copy JSON</button>
+        <button class="tool-btn" onclick="closeFullscreen()" style="border-color:var(--red);color:var(--red)">✕ Close</button>
+    </div>
+    <div class="fs-body" id="fsBody"></div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// Endpoint manifest
+// ─────────────────────────────────────────────────────────────────────────────
+const ENDPOINTS = [
+    { method:'GET',    path:'/',                 label:'Welcome',         params:[] },
+    { method:'GET',    path:'/health',           label:'Health',          params:[] },
+    { method:'GET',    path:'/ready',            label:'Readiness',       params:[] },
+    {
+        method:'POST', path:'/weather/snapshot', label:'New Snapshot',
+        params:[
+            { name:'city', label:'City Name  (e.g. Melbourne, Tokyo, London)', type:'text', def:'Melbourne', query:true },
+        ],
+    },
+    { method:'GET',    path:'/weather/history',  label:'History',         params:[] },
+    { method:'GET',    path:'/weather/latest',   label:'Latest',          params:[] },
+    { method:'GET',    path:'/weather/stats',    label:'Stats',           params:[] },
+    {
+        method:'DELETE', path:'/weather/{id}',   label:'Delete Snapshot',
+        params:[
+            { name:'id', label:'Snapshot UUID', type:'text', def:'', query:false },
+        ],
+    },
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+let activeIdx    = 0;
+let lastRawJson  = null;
+let fontSize     = 13;
+let wrapOn       = true;
+let bottomOpen   = true;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const base = () => $('baseUrl').value.replace(/\/+$/, '');
+
+function esc(s) {
+    return String(s ?? '')
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtTime(ts) {
+    if (!ts) return '—';
+    try { return new Date(ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'}); }
+    catch { return ts; }
+}
+function buildUrl() {
+    const ep = ENDPOINTS[activeIdx];
+    let path = ep.path;
+    const qs = [];
+    ep.params.forEach(p => {
+        const el = $(`p-${p.name}`);
+        const v  = el ? el.value.trim() : p.def;
+        if (p.query) { if (v !== '') qs.push(`${p.name}=${encodeURIComponent(v)}`); }
+        else path = path.replace(`{${p.name}}`, v);
+    });
+    return base() + path + (qs.length ? '?' + qs.join('&') : '');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Sidebar
+// ─────────────────────────────────────────────────────────────────────────────
+function buildSidebar() {
+    const list = $('sidebarList');
+    ENDPOINTS.forEach((ep, i) => {
+        const btn = document.createElement('button');
+        btn.className = 'ep-btn' + (i === 0 ? ' active' : '');
+        btn.innerHTML = `<span class="badge ${ep.method}">${ep.method}</span><span>${esc(ep.path)}</span>`;
+        btn.onclick = () => select(i);
+        list.appendChild(btn);
+    });
+}
+
+function select(i) {
+    activeIdx = i;
+    document.querySelectorAll('.ep-btn').forEach((b, idx) => b.classList.toggle('active', idx === i));
+    renderRequest();
+    clearResponse();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Request panel
+// ─────────────────────────────────────────────────────────────────────────────
+function renderRequest() {
+    const ep = ENDPOINTS[activeIdx];
+    const rb = $('reqBadge');
+    rb.textContent = ep.method;
+    rb.className   = `req-badge badge ${ep.method}`;
+
+    const grid = $('paramsGrid');
+    grid.innerHTML = '';
+    ep.params.forEach(p => {
+        const wrap = document.createElement('div');
+        wrap.className = 'param-field';
+        wrap.innerHTML = `
+            <label class="param-label" for="p-${esc(p.name)}">${esc(p.label)}</label>
+            <input class="param-input" id="p-${esc(p.name)}" type="${p.type}"
+                   value="${esc(p.def)}" placeholder="${esc(p.label)}" oninput="refreshUrlDisplay()">
+        `;
+        grid.appendChild(wrap);
+    });
+    refreshUrlDisplay();
+}
+
+function refreshUrlDisplay() { $('urlDisplay').textContent = buildUrl(); }
+$('baseUrl').addEventListener('input', refreshUrlDisplay);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Send request
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendRequest() {
+    const ep  = ENDPOINTS[activeIdx];
+    const url = buildUrl();
+    const btn = $('sendBtn');
+
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span>  Sending…';
+    clearResponse();
+
+    const t0 = performance.now();
+    try {
+        const res = await fetch(url, { method: ep.method, headers: { Accept: 'application/json' } });
+        const ms  = Math.round(performance.now() - t0);
+        const raw = await res.text();
+
+        let parsed;
+        try   { parsed = JSON.parse(raw); lastRawJson = JSON.stringify(parsed, null, 2); }
+        catch { parsed = raw;             lastRawJson = raw; }
+
+        showResponse(res.status, ms, parsed);
+
+        if (res.ok) toast('ok',    `${ep.method} ${ep.path} → ${res.status}`);
+        else        toast('error', `${ep.method} ${ep.path} → ${res.status}`);
+
+        if (ep.method === 'POST' || ep.method === 'DELETE') await refreshBottom();
+
+    } catch (err) {
+        const ms = Math.round(performance.now() - t0);
+        showNetworkError(err.message, ms);
+        toast('error', 'Network error — is the Flask server running?');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '▶  Send Request';
+    }
+}
+
+document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendRequest();
+    if (e.key === 'Escape') closeFullscreen();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Response rendering
+// ─────────────────────────────────────────────────────────────────────────────
+function clearResponse() {
+    $('statusChip').style.display = 'none';
+    $('respTime').textContent     = '';
+    $('copyBtn').style.display    = 'none';
+    $('fsBtn').style.display      = '';
+    $('respBody').innerHTML       = '<span class="resp-placeholder">Waiting for response…</span>';
+    lastRawJson = null;
+}
+
+function showResponse(status, ms, data) {
+    const chip = $('statusChip');
+    chip.textContent = status;
+    chip.className   = 'status-chip ' + (status < 300 ? 'ok' : status < 500 ? 'warn' : 'err');
+    chip.style.display = '';
+
+    $('respTime').textContent  = `${ms} ms`;
+    $('copyBtn').style.display = '';
+
+    const body = $('respBody');
+    if (typeof data === 'object' && data !== null) {
+        body.innerHTML = highlight(JSON.stringify(data, null, 2));
+    } else {
+        body.textContent = String(data);
+    }
+}
+
+function showNetworkError(msg, ms) {
+    const chip = $('statusChip');
+    chip.textContent   = 'ERR';
+    chip.className     = 'status-chip err';
+    chip.style.display = '';
+    $('respTime').textContent = `${ms} ms`;
+    $('respBody').innerHTML   =
+        `<span style="color:var(--red)">⚠  Could not reach the server.\n\n${esc(msg)}\n\nMake sure Flask is running:\n  python app.py</span>`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Response toolbar actions
+// ─────────────────────────────────────────────────────────────────────────────
+function toggleWrap() {
+    wrapOn = !wrapOn;
+    $('respBody').classList.toggle('nowrap', !wrapOn);
+    $('wrapBtn').classList.toggle('active', wrapOn);
+}
+
+function changeFontSize(delta) {
+    fontSize = Math.min(20, Math.max(10, fontSize + delta));
+    $('respBody').style.fontSize = fontSize + 'px';
+}
+
+function copyResponse() {
+    if (!lastRawJson) return;
+    navigator.clipboard.writeText(lastRawJson)
+        .then(() => toast('ok',    'Response copied to clipboard'))
+        .catch(() => toast('error','Clipboard access denied'));
+}
+
+function openFullscreen() {
+    if (!lastRawJson) return;
+    const body = $('fsBody');
+    const chip = $('statusChip');
+    $('fsTitle').textContent = chip.textContent ? `Response  ·  HTTP ${chip.textContent}  ·  ${$('respTime').textContent}` : 'Response';
+    body.innerHTML = $('respBody').innerHTML;
+    body.className = 'fs-body' + (!wrapOn ? ' nowrap' : '');
+    $('fsOverlay').classList.add('open');
+}
+
+function closeFullscreen() { $('fsOverlay').classList.remove('open'); }
+
+function toggleFsWrap() {
+    const body = $('fsBody');
+    body.classList.toggle('nowrap');
+    $('fsWrapBtn').classList.toggle('active', !body.classList.contains('nowrap'));
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// JSON syntax highlighting
+// ─────────────────────────────────────────────────────────────────────────────
+function highlight(json) {
+    return esc(json).replace(
+        /("(?:\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false)\b|\bnull\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        m => {
+            if (/^"/.test(m)) return m.endsWith(':') ? `<span class="jk">${m}</span>` : `<span class="js">${m}</span>`;
+            if (/true|false/.test(m)) return `<span class="jb">${m}</span>`;
+            if (m === 'null')         return `<span class="jl">${m}</span>`;
+            return `<span class="jn">${m}</span>`;
+        }
+    );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Collapsible bottom section
+// ─────────────────────────────────────────────────────────────────────────────
+function toggleBottom() {
+    bottomOpen = !bottomOpen;
+    $('bottomRow').classList.toggle('collapsed', !bottomOpen);
+    $('toggleIcon').classList.toggle('open', bottomOpen);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Health ping — every 5 s
+// ─────────────────────────────────────────────────────────────────────────────
+async function ping() {
+    const dot = $('sDot'), label = $('sLabel');
+    try {
+        const r = await fetch(base() + '/health', { signal: AbortSignal.timeout(4000) });
+        if (r.ok) {
+            dot.className = 'status-dot up'; label.className = 'status-label up'; label.textContent = 'Connected';
+        } else throw r.status;
+    } catch {
+        dot.className = 'status-dot down'; label.className = 'status-label down'; label.textContent = 'Disconnected';
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bottom panels
+// ─────────────────────────────────────────────────────────────────────────────
+async function refreshBottom() { await Promise.allSettled([loadHistory(), loadStats()]); }
+
+async function loadHistory() {
+    try {
+        const r = await fetch(base() + '/weather/history');
+        if (!r.ok) return;
+        const j = await r.json();
+        renderHistory(j?.data?.snapshots ?? []);
+    } catch {}
+}
+
+async function loadStats() {
+    try {
+        const r = await fetch(base() + '/weather/stats');
+        if (!r.ok) { renderStats(null); return; }
+        const j = await r.json();
+        renderStats(j?.data ?? null);
+    } catch { renderStats(null); }
+}
+
+function renderHistory(snaps) {
+    $('countPill').textContent = `${snaps.length} snapshot${snaps.length !== 1 ? 's' : ''}`;
+    const body = $('historyBody');
+    if (!snaps.length) {
+        body.innerHTML = '<tr class="no-data"><td colspan="7">No snapshots yet — POST /weather/snapshot to begin</td></tr>';
+        return;
+    }
+    body.innerHTML = snaps.map(s => `
+        <tr>
+            <td class="city-cell">${esc(s.city ?? '—')}</td>
+            <td>${s.temperature != null ? s.temperature : '—'}</td>
+            <td>${s.humidity    != null ? s.humidity    : '—'}</td>
+            <td>${s.wind_speed  != null ? s.wind_speed  : '—'}</td>
+            <td><span class="src-badge ${esc(s.source ?? '')}">${esc(s.source ?? '—')}</span></td>
+            <td style="color:var(--muted)">${fmtTime(s.timestamp)}</td>
+            <td><button class="del-row-btn" onclick="deleteById('${esc(s.id)}')">Delete</button></td>
+        </tr>
+    `).join('');
+}
+
+function renderStats(d) {
+    const grid = $('statsGrid');
+    if (!d) {
+        grid.innerHTML = `<div class="stat-card" style="grid-column:1/-1;align-items:center;justify-content:center;color:var(--muted);font-size:11px;font-style:italic">No data — save a snapshot first</div>`;
+        return;
+    }
+    const metrics = [
+        { key:'temperature', label:'Temperature', unit:'°C' },
+        { key:'humidity',    label:'Humidity',    unit:'%'  },
+        { key:'wind_speed',  label:'Wind Speed',  unit:'km/h' },
+    ];
+    const cards = metrics.map(m => {
+        const v = d[m.key] ?? {};
+        const f = x => x != null ? `${x} ${m.unit}` : '—';
+        return `<div class="stat-card">
+            <div class="stat-name">${m.label}</div>
+            <div class="stat-rows">
+                <div class="stat-row"><span class="stat-lbl">AVG</span><span class="stat-val avg">${f(v.avg)}</span></div>
+                <div class="stat-row"><span class="stat-lbl">MIN</span><span class="stat-val mn">${f(v.min)}</span></div>
+                <div class="stat-row"><span class="stat-lbl">MAX</span><span class="stat-val mx">${f(v.max)}</span></div>
+            </div></div>`;
+    }).join('');
+    grid.innerHTML = cards + `<div class="stat-card total-card">
+        <div class="stat-name">Total</div>
+        <div class="total-num">${d.total_snapshots ?? 0}</div>
+        <div class="total-lbl">snapshots</div></div>`;
+}
+
+async function deleteById(id) {
+    try {
+        const r = await fetch(base() + '/weather/' + encodeURIComponent(id), { method:'DELETE' });
+        if (r.ok) toast('ok', 'Snapshot deleted');
+        else      toast('error', `Delete failed — ${r.status}`);
+        await refreshBottom();
+    } catch (err) { toast('error', `Delete failed: ${err.message}`); }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Toasts
+// ─────────────────────────────────────────────────────────────────────────────
+function toast(type, msg) {
+    const el = document.createElement('div');
+    el.className = `toast${type==='error'?' error':type==='warning'?' warning':''}`;
+    const c = type==='error'?'var(--red)':type==='warning'?'var(--amber)':'var(--green)';
+    const i = type==='error'?'✖':type==='warning'?'⚠':'✔';
+    el.innerHTML = `<span style="color:${c};font-size:13px">${i}</span><span>${esc(msg)}</span>`;
+    $('toastWrap').appendChild(el);
+    setTimeout(() => { el.classList.add('out'); el.addEventListener('animationend', ()=>el.remove(),{once:true}); }, 3200);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Boot
+// ─────────────────────────────────────────────────────────────────────────────
+buildSidebar();
+renderRequest();
+renderStats(null);
+refreshBottom();
+ping();
+setInterval(ping, 5000);
+
+// Mark wrap button active by default
+$('wrapBtn').classList.add('active');
+</script>
+</body>
+</html>

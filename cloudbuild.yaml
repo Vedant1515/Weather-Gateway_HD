@@ -1,0 +1,36 @@
+
+timeout: 1200s
+
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    id: build
+    args: [build, -t, "vedant1515/weather-gateway:$COMMIT_SHA", -t, "vedant1515/weather-gateway:latest", .]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: login
+    waitFor: [build]
+    args: [login, -u, vedant1515, -p, "$_DOCKERHUB_PASSWORD"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-sha
+    waitFor: [login]
+    args: [push, "vedant1515/weather-gateway:$COMMIT_SHA"]
+
+  - name: "gcr.io/cloud-builders/docker"
+    id: push-latest
+    waitFor: [login]
+    args: [push, "vedant1515/weather-gateway:latest"]
+
+  - name: "gcr.io/cloud-builders/gcloud"
+    id: deploy
+    waitFor: [push-sha, push-latest]
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        TOKEN=$$(gcloud auth print-access-token)
+        curl -sk -X PATCH \
+          "https://$_ENDPOINT/apis/apps/v1/namespaces/default/deployments/weather-gateway" \
+          -H "Authorization: Bearer $$TOKEN" \
+          -H "Content-Type: application/strategic-merge-patch+json" \
+          -d '{"spec":{"template":{"spec":{"containers":[{"name":"weather-gateway","image":"vedant1515/weather-gateway:$COMMIT_SHA"}]}}}}'

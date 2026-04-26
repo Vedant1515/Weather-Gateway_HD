@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: weather-gateway
+  labels:
+    app: weather-gateway
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: weather-gateway
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      # maxUnavailable: 0 guarantees zero downtime — at least 2 pods always serve traffic.
+      # maxSurge: 1 allows one extra pod during the rollout so capacity is never reduced.
+      # These values set up the scaling / rollout story for Part 2 (10.2HD).
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: weather-gateway
+    spec:
+      containers:
+        - name: weather-gateway
+          image: vedant1515/weather-gateway:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+              name: http
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          # Liveness probe — Kubernetes restarts the container if /health stops responding.
+          # Thresholds will be tuned in Part 2 (10.2HD).
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          # Readiness probe — traffic is held until /ready confirms PVC is accessible.
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: weather-data
+              mountPath: /data
+      volumes:
+        - name: weather-data
+          persistentVolumeClaim:
+            claimName: weather-data-pvc
