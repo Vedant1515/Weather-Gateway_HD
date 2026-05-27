@@ -132,6 +132,7 @@ def index():
         {"method": "GET",    "path": "/weather/latest",           "description": "Most recent snapshot"},
         {"method": "GET",    "path": "/weather/stats",            "description": "Aggregated statistics"},
         {"method": "DELETE", "path": "/weather/<id>",             "description": "Delete a snapshot by id"},
+        {"method": "GET",    "path": "/stress",                   "description": "CPU‑intensive endpoint for HPA scaling tests"},
     ]
     return _success(
         data={
@@ -277,6 +278,29 @@ def delete_snapshot(snapshot_id: str):
     if not deleted:
         return _error(f"Snapshot '{snapshot_id}' not found.", 404)
     return _success({"deleted_id": snapshot_id})
+
+
+# ---------------------------------------------------------------------------
+# NEW: CPU‑intensive endpoint for HPA scaling tests
+# ---------------------------------------------------------------------------
+@app.route("/stress", methods=["GET"])
+def stress():
+    """
+    Simulate a CPU‑intensive task to increase pod CPU utilisation.
+    Used to trigger Horizontal Pod Autoscaler scale‑up events.
+    """
+    import time
+    start = time.time()
+    # Perform 10 million dummy calculations (adjustable)
+    for _ in range(10**7):
+        _ = 2 ** 20
+    duration = time.time() - start
+    logger.info("GET /stress completed in %.2f seconds", duration)
+    return jsonify({
+        "status": "stressed",
+        "duration_seconds": duration,
+        "message": "CPU load generated. Check HPA scaling with 'kubectl get hpa -w'."
+    }), 200
 
 
 # ---------------------------------------------------------------------------
